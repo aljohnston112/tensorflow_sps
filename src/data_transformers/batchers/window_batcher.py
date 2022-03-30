@@ -1,12 +1,15 @@
 import tensorflow as tf
 
-from src.main.batchers.base_batcher import BaseBatcher
-from src.main.dataset_maker import get_data_from_csv_path
-from src.main.normalizer import normalize_tensors
-from src.main.window_generator import WindowGenerator
+from src.data_transformers.batchers.base_batcher import BaseBatcher
+from src.data_transformers.files_prepper import get_data_from_csv_path
+from src.data_transformers.normalizer import normalize_tensors
+from src.data_transformers.window_generator import WindowGenerator
 
 
 class WindowBatcher(BaseBatcher):
+    def reset(self):
+        self.i = 0
+
     def __init__(self, csv_filepaths, label_key):
         self.label_key = label_key
         self.filepaths = csv_filepaths
@@ -28,7 +31,7 @@ class WindowBatcher(BaseBatcher):
             window_features, window_labels = wg.split_window()
             self.time_features = []
             self.time_labels = []
-            while window_features is not None and window_labels is not None:
+            while window_features is not None and window_labels is not None and len(window_features) > 0 and len(window_labels) > 0:
                 self.time_features.append(window_features)
                 self.time_labels.append(window_labels)
                 window_features, window_labels = wg.split_window()

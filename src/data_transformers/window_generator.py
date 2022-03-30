@@ -1,8 +1,8 @@
 
 
 class WindowGenerator:
-    def __init__(self, feature_width, label_width, label_offset, delta_i,
-                 features, labels
+    def __init__(self, feature_width, delta_i, features,
+                 label_width=0, label_offset=0, labels=None
                  ):
 
         self.features = features
@@ -16,8 +16,14 @@ class WindowGenerator:
 
     def split_window(self):
         end_i = self.i + self.feature_width - 1 + self.label_width + self.label_offset
-        if self.i + self.feature_width > len(self.features) or end_i > len(self.labels):
-            return None, None
+        if self.i + self.feature_width > len(self.features):
+            if self.labels is not None:
+                return None, None
+            else:
+                return None
+        if self.labels is not None:
+            if end_i > len(self.labels):
+                return None, None
 
         if self.i + self.feature_width < len(self.features):
             features = self.features[self.i: self.i + self.feature_width]
@@ -25,10 +31,13 @@ class WindowGenerator:
             features = self.features[self.i:]
 
         start_i = self.i + self.feature_width - 1 + self.label_offset
-        if end_i < len(self.labels):
-            labels = self.labels[start_i: end_i]
-        else:
-            labels = self.labels[start_i:]
+        if self.labels is not None:
+            if end_i < len(self.labels):
+                labels = self.labels[start_i: end_i]
+            else:
+                labels = self.labels[start_i:]
+            self.i += self.delta_i
+            return features, labels
 
         self.i += self.delta_i
-        return features, labels
+        return features

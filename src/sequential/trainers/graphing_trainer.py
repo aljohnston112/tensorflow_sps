@@ -6,13 +6,13 @@ from matplotlib import pyplot as plt
 import tensorflow as tf
 from tensorflow import keras
 
+from src import config
+from src.config import LABEL_KEY, yahoo_data_dataset_folder
+from src.data_transformers import files_prepper
+from src.sequential.models import model_v1
+
 if typing.TYPE_CHECKING:
     from keras.api._v2 import keras
-
-from src.main import config
-from src.data_transformers import files_prepper
-from src.main.config import data_folder, LABEL_KEY
-from src.main.models import model_v1
 
 
 class TerminateAtNan(keras.callbacks.TerminateOnNaN):
@@ -27,9 +27,10 @@ class TerminateAtNan(keras.callbacks.TerminateOnNaN):
 
 def train(batcher_type):
     config.init()
-    training_filepaths, testing_filepaths, validation_filepaths = files_prepper.random_split(data_folder)
-    training_batcher = batcher_type(training_filepaths[:100], label_key=LABEL_KEY)
-    validation_batcher = batcher_type(validation_filepaths[:100], label_key=LABEL_KEY)
+    training_filepaths, testing_filepaths, validation_filepaths = \
+        files_prepper.random_split(yahoo_data_dataset_folder)
+    training_batcher = batcher_type(training_filepaths[:10], label_key=LABEL_KEY)
+    validation_batcher = batcher_type(validation_filepaths[:10], label_key=LABEL_KEY)
 
     stock_features, stock_labels = training_batcher.get_single_data_batch()
     stock_features_validation, stock_labels_validation = validation_batcher.get_single_data_batch()
@@ -37,10 +38,11 @@ def train(batcher_type):
     stock_model = model_v1.Model(50)
     stock_model.compile(
         loss=tf.keras.losses.MSE,
-        optimizer=tf.optimizers.SGD(learning_rate=0.01, clipvalue=1.0)
+        optimizer=tf.optimizers.SGD(learning_rate=0.01, clipvalue=1.0),
+        metrics=[tf.metrics.MeanAbsoluteError(), 'accuracy'],
     )
 
-    for j in range(1000):
+    for j in range(100):
         history_plot = []
         val_history_plot = []
         x_plot = []
@@ -50,16 +52,13 @@ def train(batcher_type):
         feature_plot = []
         label_plot = []
         i = 0
-        while stock_features is not None:
+        while stock_features is not None and stock_features_validation is not None:
             feature_plot.append(stock_features)
             label_plot.append(stock_labels)
             out = stock_model(stock_features)
             unpredicted_out_plot.append([1 if o > 0.5 else 0 for o in out])
 
             print(f'x= {stock_features}, y = {stock_labels}')
-            stock_features_validation, stock_labels_validation = validation_batcher.get_single_data_batch()
-            while stock_features_validation is None:
-                stock_features_validation, stock_labels_validation = validation_batcher.get_single_data_batch()
             history = stock_model.fit(
                 stock_features, stock_labels,
                 validation_data=(stock_features_validation, stock_labels_validation),
@@ -77,7 +76,10 @@ def train(batcher_type):
             val_predicted_out_plot.append([1 if o > 0.5 else 0 for o in out])
 
             stock_features, stock_labels = training_batcher.get_single_data_batch()
+            stock_features_validation, stock_labels_validation = validation_batcher.get_single_data_batch()
             i += 1
+        validation_batcher.reset()
+        training_batcher.reset()
         if len(x_plot) > 0:
             # W, H in inches
             matplotlib.rcParams['figure.figsize'] = [9, 6]

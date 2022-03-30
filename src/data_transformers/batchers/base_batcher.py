@@ -7,3 +7,6 @@ class BaseBatcher(ABC):
     def get_single_data_batch(self):
         pass
 
+    @abstractmethod
+    def reset(self):
+        pass

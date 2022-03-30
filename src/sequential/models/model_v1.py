@@ -1,10 +1,13 @@
-from typing import Callable
+import typing
 
 import tensorflow as tf
 from tensorflow import keras
 
+if typing.TYPE_CHECKING:
+    from keras.api._v2 import keras
 
-class Model(keras.Model):
+
+class Model(keras.layers.Layer):
 
     def __init__(self, units):
         super().__init__()
@@ -16,7 +19,7 @@ class Model(keras.Model):
         )
         self.dense2 = keras.layers.Dense(units/2)
         self.dense3 = keras.layers.Dense(units/4)
-        self.dense4 = keras.layers.Dense(1)
+        self.dense4 = keras.layers.Dense(1, activation=keras.activations.sigmoid)
 
     def call(self, x2, training=True, mask=None):
         x1 = self.dense1(x2)

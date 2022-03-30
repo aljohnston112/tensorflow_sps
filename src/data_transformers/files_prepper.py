@@ -1,7 +1,8 @@
 import os
-import pathlib
 
 import numpy as np
+import pandas as pd
+import tensorflow as tf
 from numpy.random import shuffle
 from sklearn.model_selection import train_test_split
 
@@ -34,5 +35,11 @@ def __split_filepaths__(filepaths):
 def random_split(data_folder):
     return __split_filepaths__(__shuffle_filepaths__(__get_data_filepaths__(data_folder)))
 
+
+def get_data_from_csv_path(filepath, label_key):
+    single_data = pd.read_csv(filepath, index_col=[0])
+    single_features = single_data.copy()
+    single_labels = single_features.pop(label_key)
+    return single_features, single_labels
 
 
