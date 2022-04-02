@@ -35,14 +35,14 @@ class PoissonNeuron(Layer):
 
 
 class PoissonLayer(Layer):
-    def __init__(self, num_outputs, **kwargs):
+    def __init__(self, units, **kwargs):
         super().__init__(**kwargs)
         self.kernel = None
         self.poisson = None
         self.b = None
         self.a = None
         self.front = tf.divide(1.0, pi)
-        self.num_outputs = num_outputs
+        self.num_outputs = units
 
     def build(self, input_shape):
         self.poisson = PoissonNeuron(num_output_to_input_ratio=1, input_shape=input_shape)
