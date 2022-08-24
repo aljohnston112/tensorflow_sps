@@ -63,7 +63,7 @@ class PoissonLayer(Layer):
         return o
 
 
-if __name__ == "__poisson_layer__":
+if __name__ == "__main__":
     layer = PoissonLayer(1)
     features = tf.linspace(-1, 1, 100)
     labels = tf.constant(100)

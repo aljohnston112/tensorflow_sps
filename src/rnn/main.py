@@ -1,6 +1,7 @@
 import typing
 
 import matplotlib
+import pandas
 import tensorflow as tf
 from matplotlib import pyplot as plt
 from tensorflow import keras
@@ -132,7 +133,7 @@ def train(batcher_type):
             optimizer = tf.optimizers.Adam(
                 tf.keras.optimizers.schedules.CosineDecayRestarts(
                     initial_learning_rate=10000000.0,
-                    first_decay_steps=1000*100
+                    first_decay_steps=1000 * 100
                 ))
             loss_fn = keras.losses.MeanSquaredError()
 

@@ -3,13 +3,7 @@ import os
 
 import pandas
 
-from src.config import yahoo_data_folder, yahoo_data_numbers_folder
-from src.data_transformers.data_to_percents import get_percent
-
-
-def get_year(row):
-    year = row.split("-")[0]
-    return int(year)
+from src.config import yahoo_data_aggregate_folder, yahoo_data_folder
 
 
 def get_month(row):
@@ -18,17 +12,16 @@ def get_month(row):
 
 
 def convert_data_to_numbers():
-    file_names = [f for f in glob.glob(yahoo_data_folder + "*.csv")]
-    out_folder = yahoo_data_numbers_folder
+    files = [f for f in glob.glob(yahoo_data_folder + "*.csv")]
+    out_folder = yahoo_data_aggregate_folder
     if not os.path.exists(out_folder):
         os.mkdir(out_folder)
-    for data_file in file_names:
+    for data_file in files:
         with open(data_file, 'r') as f:
             numbers_file = out_folder + os.path.basename(f.name)
             if not os.path.exists(numbers_file):
                 raw_data = pandas.read_csv(f)
                 date_data = raw_data.pop("Date")
-                year = date_data.apply(lambda row: get_year(row))
                 month = date_data.apply(lambda row: get_month(row))
                 percent_profit = raw_data.apply(lambda row: get_percent(row), axis=1)
                 percent_profit.drop(percent_profit.index[:1], inplace=True)

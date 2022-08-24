@@ -14,12 +14,12 @@ def get_percent(row):
 
 
 def convert_data_to_percents():
-    files = [f for f in glob.glob(yahoo_data_folder + "*.csv")]
+    file_names = [f for f in glob.glob(yahoo_data_folder + "*.csv")]
     out_folder = yahoo_data_percent_folder
     if not os.path.exists(out_folder):
         os.mkdir(out_folder)
-    for data_file in files:
-        with open(data_file, 'r') as f:
+    for data_file_name in file_names:
+        with open(data_file_name, 'r') as f:
             percent_file = out_folder + os.path.basename(f.name)
             if not os.path.exists(percent_file):
                 raw_data = pandas.read_csv(f)

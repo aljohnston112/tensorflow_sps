@@ -11,12 +11,11 @@ from src import config
 from src.config import yahoo_data_numbers_folder, LABEL_KEY
 from src.data_transformers import files_prepper
 from src.data_transformers.batchers.concat_batcher import ConcatBatcher
-from src.wavelets.poisson_layer import PoissonLayer
 
 if typing.TYPE_CHECKING:
     from keras.api._v2 import keras
 
-list_of_model_classes = [PoissonLayer, Dense]
+list_of_model_classes = [Dense]
 
 
 def get_number_of_weights(weights):
@@ -35,44 +34,72 @@ def verify_same_number_of_weights(weights1, weights2):
 
 
 def get_row_and_index(weights, index):
-    index_const = index
+    i = 0
+    row_index = 0
     row = 0
-    count = weights[row].size - 1
-    while count < index_const:
-        index -= weights[row].size
-        row += 1
-        count += weights[row].size
-    return row, index
+    for j, r in enumerate(range(len(weights))):
+        if index == i:
+            break
+        row = j
+        row_index = 0
+        for _ in weights[row].ravel():
+            i += 1
+            row_index += 1
+            if index == i:
+                if row_index == len(weights[row].ravel()):
+                    row_index = 0
+                    row += 1
+                break
+    return row, row_index
 
 
 def parent_child_weights(weights1, weights2):
     parent_weights = []
     child_weights = []
     for w in weights1:
-        parent_weights += (copy.deepcopy(w))
+        parent_weights.append(copy.deepcopy(w))
     for w in weights2:
-        child_weights += (copy.deepcopy(w))
+        child_weights.append(copy.deepcopy(w))
     return parent_weights, child_weights
 
 
 def random_crossover_of_weights(weights1, weights2):
     number_of_weights1 = get_number_of_weights(weights1)
     number_of_weights2 = get_number_of_weights(weights2)
+    number_of_weights = min(number_of_weights1, number_of_weights2)
     child_weights = []
-    is_one = True
+    child_is_one = True
     if number_of_weights1 <= number_of_weights2:
         for w in weights1:
             child_weights.append(copy.deepcopy(w))
     else:
-        is_one = False
+        child_is_one = False
         for w in weights2:
             child_weights.append(copy.deepcopy(w))
-    flat_child_weights = unravel_weights(child_weights)
-    flat_parent_weights = unravel_weights(weights1) if not is_one else unravel_weights(weights2)
-    for i in range(len(flat_child_weights)):
+    parent_weights = weights1 if not child_is_one else weights2
+    changed = False
+    unchanged = False
+    for i in range(number_of_weights):
+        child_row, child_index = get_row_and_index(child_weights, i)
+        parent_row, parent_index = get_row_and_index(parent_weights, i)
         change = random.choice([True, False])
         if change:
-            flat_child_weights[i] = flat_parent_weights[i]
+            changed = True
+            flat_child_row = child_weights[child_row].ravel()
+            flat_parent_row = parent_weights[parent_row].ravel()
+            flat_child_row[child_index] = flat_parent_row[parent_index]
+        else:
+            unchanged = True
+    if not (changed and unchanged):
+        if not changed:
+            flat_child_row = child_weights[0].ravel()
+            flat_parent_row = parent_weights[0].ravel()
+            flat_child_row[0] = flat_parent_row[0]
+        elif not unchanged:
+            parent_weights = weights2 if not child_is_one else weights1
+            flat_child_row = child_weights[0].ravel()
+            flat_parent_row = parent_weights[0].ravel()
+            flat_child_row[0] = flat_parent_row[0]
     return child_weights
 
 
@@ -115,11 +142,13 @@ def random_crossover_of_models(model1, model2):
     return model
 
 
-def get_sorted_crossover_points(number_of_weights):
+def get_sorted_crossover_points(number_of_weights, n_points):
     indices = []
-    n_points = random.randint(1, round(number_of_weights / 2))
     for i in range(n_points):
-        indices.append(random.randrange(0, number_of_weights))
+        r = random.randrange(0, number_of_weights - 1)
+        while r in indices:
+            r = random.randrange(0, number_of_weights - 1)
+        indices.append(r)
     indices.sort()
     return indices
 
@@ -127,11 +156,11 @@ def get_sorted_crossover_points(number_of_weights):
 def unravel_weights(weights):
     weights_unraveled = []
     for w in weights:
-        weights_unraveled.extend(w.ravel())
+        weights_unraveled.extend(i for i in w.ravel()[:])
     return weights_unraveled
 
 
-def crossover_weights(weights1, weights2):
+def crossover_weights(weights1, weights2, n_points):
     number_of_weights1 = get_number_of_weights(weights1)
     number_of_weights2 = get_number_of_weights(weights2)
     child_weights = []
@@ -145,10 +174,10 @@ def crossover_weights(weights1, weights2):
             child_weights.append(copy.deepcopy(w))
     flat_child_weights = unravel_weights(child_weights)
     flat_parent_weights = unravel_weights(weights1) if not is_one else unravel_weights(weights2)
-    indices = get_sorted_crossover_points(len(flat_child_weights))
+    indices = get_sorted_crossover_points(len(flat_child_weights), n_points)
     last_index = 0
-    for crossover_index in indices:
-        if crossover_index % 2 != 0:
+    for i, crossover_index in enumerate(indices):
+        if i % 2 != 0:
             flat_child_weights[last_index:crossover_index] = \
                 flat_parent_weights[last_index:crossover_index]
         last_index = crossover_index
@@ -158,22 +187,26 @@ def crossover_weights(weights1, weights2):
 def crossover_models(model1, model2):
     weights1 = model1.get_weights()
     weights2 = model2.get_weights()
-    weights = crossover_weights(weights1, weights2)
+    number_of_weights1 = get_number_of_weights(weights1)
+    number_of_weights2 = get_number_of_weights(weights2)
+    number_of_weights = min(number_of_weights1, number_of_weights2)
+    n_points = random.randint(1, round(number_of_weights / 10))
+    weights = crossover_weights(weights1, weights2, n_points)
     model_layers = create_new_layers_from_match(model1, model2, weights)
     model = tf.keras.Sequential(model_layers)
     model.set_weights(weights)
     return model
 
 
-def mutate_weights(weights):
+def mutate_weights(weights, n_mutations):
     new_weights = copy.deepcopy(weights)
-    number_of_weights = 0
-    for weights in new_weights:
-        number_of_weights += weights.size
-
-    n_mutations = random.randint(1, number_of_weights)
-    for weights in range(number_of_weights):
-        index = random.randrange(0, number_of_weights)
+    number_of_weights = get_number_of_weights(new_weights)
+    indices = []
+    for _ in range(n_mutations):
+        index = random.randrange(1, number_of_weights - 1)
+        while index in indices:
+            index = random.randrange(1, number_of_weights - 1)
+        indices.append(index)
         row, index = get_row_and_index(new_weights, index)
         new_weight = random.uniform(-1.0, 1.0)
         flat_row = new_weights[row].ravel()
@@ -185,7 +218,9 @@ def mutate_model(model_in):
     weights = model_in.get_weights()
     model_layers = create_new_layers_from_model(model_in)
     model = tf.keras.Sequential(model_layers)
-    mutated_weights = mutate_weights(weights)
+    number_of_weights = get_number_of_weights(model.get_weights())
+    n_mutations = random.randint(1, number_of_weights)
+    mutated_weights = mutate_weights(weights, n_mutations)
     model.set_weights(mutated_weights)
     return model
 
@@ -238,7 +273,7 @@ def compile_model(model):
         metrics=[keras.losses.MeanSquaredError(), ],
         optimizer=tf.optimizers.Adam(
             keras.optimizers.schedules.CosineDecayRestarts(
-                initial_learning_rate=1.0,
+                initial_learning_rate=0.0000001,
                 first_decay_steps=10
             )
         ),
@@ -256,23 +291,23 @@ def get_first_generation():
 
 def next_gen(models_list):
     pick = random.randint(0, len(models_list) - 1)
-    models = models_list[pick]
+    models = models_list[len(models_list) - 1]
+    models_list.append([])
+    for _ in range(3):
+        m = mutate_model(models[0])
+        compile_model(m)
+        models_list[-1].append(m)
     for i in range(1, 2):
         for j in range(i):
             m = random_crossover_of_models(models[j], models[i + 1])
             compile_model(m)
-            models_list[0].append(m)
-    for i in range(1, 2):
-        for j in range(i):
-            m = crossover_models(models[j], models[i + 1])
-            compile_model(m)
-            models_list[0].append(m)
-    for _ in range(2):
-        m = mutate_model(models[0])
-        compile_model(m)
-        models_list[0].append(m)
-    models_list.append([])
-    for _ in range(10):
+            models_list[-1].append(m)
+    # for i in range(1, 2):
+    #     for j in range(i):
+    #         m = crossover_models(models[j], models[i + 1])
+    #         compile_model(m)
+    #         models_list[0].append(m)
+    for _ in range(3):
         m = add_layer(models[0], 64)
         compile_model(m)
         models_list[-1].append(m)
@@ -319,6 +354,8 @@ def train(batcher_type):
             losses.append(loss1[0])
             best_loss = min(loss1[0], best_loss)
             print(f"First for size gen {i}: {loss1}")
+            loss1 = models[-1].evaluate(x, y, verbose=0)
+            print(f"Worst loss for size gen {i}: {loss1}")
         print(f"Best loss: {best_loss}")
         found = False
         for i, loss in enumerate(losses):
@@ -346,4 +383,6 @@ def train(batcher_type):
     #     w2 = model3.get_weights()
     #     print(w2)
 
-train(ConcatBatcher)
+
+if __name__ == "__main__":
+    train(ConcatBatcher)
